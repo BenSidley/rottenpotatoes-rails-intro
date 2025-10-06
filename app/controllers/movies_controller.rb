@@ -1,4 +1,5 @@
 class MoviesController < ApplicationController
+  SORTABLE_COLUMNS = %w[title release_date].freeze
 
   def show
     id = params[:id] # retrieve movie ID from URI route
@@ -8,15 +9,33 @@ class MoviesController < ApplicationController
 
   def index
     @all_ratings = Movie.all_ratings
-    @ratings_to_show = params[:ratings]&.keys || @all_ratings
 
-    @sort_by = params[:sort_by].presence
-    sortc = %w[title release_date].include?(@sort_by) ? @sort_by : nil
+    if params[:ratings].present?
+      @ratings_to_show = params[:ratings].keys
+      session[:ratings] = params[:ratings]
+    elsif session[:ratings].present?
+      @ratings_to_show = session[:ratings].keys
+    else
+      @ratings_to_show = @all_ratings
+      session[:ratings]  = ratings_hash(@all_ratings)
+    end
+    reqsort = params[:sort_by].presence
+    if SORTABLE_COLUMNS.include?(reqsort)
+      @sort_by = reqsort
+      session[:sort_by] = @sort_by
+    else
+      @sort_by = session[:sort_by]
+    end
 
-
+    redirectP = {}
+    redirectP[:ratings] = session[:ratings] if params[:ratings].blank? && session[:ratings].present?
+    redirectP[:sort_by] = session[:sort_by] if !params.key?(:sort_by) && session[:sort_by].present?
+    if redirectP.present?
+      redirect_to movies_path(redirectP) and return
+    end
     @movies = Movie.with_ratings(@ratings_to_show)
 
-    @movies = @movies.order(sortc => :asc) if sortc
+    @movies = @movies.order(@sort_by => :asc) if @sort_by.present?
 
   end
 
